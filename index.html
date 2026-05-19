@@ -629,6 +629,34 @@
       #viewer-panel {
         width: min(680px, 95vw);
       }
+      #photo-viewer-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 210;
+        background: var(--overlay-bg);
+        backdrop-filter: blur(6px);
+        align-items: center;
+        justify-content: center;
+      }
+      #photo-viewer-overlay.open {
+        display: flex;
+      }
+      #photo-viewer-panel {
+        background: var(--card);
+        border-radius: 24px;
+        width: min(720px, 95vw);
+        max-height: 92vh;
+        overflow-y: auto;
+        box-shadow: 0 24px 80px rgba(196, 84, 122, 0.3);
+        animation: panelIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      #photo-viewer-panel img {
+        width: 100%;
+        height: auto;
+        border-radius: 18px;
+        display: block;
+      }
       @keyframes panelIn {
         from {
           transform: scale(0.7) translateY(40px);
@@ -1568,6 +1596,35 @@
       </div>
     </div>
 
+    <!-- ══ PHOTO VIEWER MODAL ══ -->
+    <div id="photo-viewer-overlay">
+      <div id="photo-viewer-panel">
+        <div class="viewer-header">
+          <div>
+            <h2 id="photo-viewer-title">Pratinjau Foto</h2>
+            <p id="photo-viewer-subtitle">Lihat detail foto</p>
+          </div>
+          <button class="close-btn" onclick="closePhotoViewer()">✕</button>
+        </div>
+        <div class="viewer-body">
+          <img id="photo-viewer-img" src="" alt="Foto" />
+          <div
+            class="viewer-meta"
+            id="photo-viewer-meta"
+            style="margin-top: 16px"
+          ></div>
+          <div
+            class="btn-row"
+            style="justify-content: center; margin-top: 12px"
+          >
+            <button class="btn btn-ghost" onclick="closePhotoViewer()">
+              Tutup
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ SECRET VAULT ══ -->
     <div id="secret-overlay">
       <div id="secret-panel">
@@ -2377,6 +2434,8 @@
       let isAdmin = false;
       let allMembers = [];
       let allEntries = [];
+      let galleryPhotos = [];
+      let adminPhotos = [];
       let currentFilter = "all";
       let adminCurrentFilter = "all";
 
@@ -2731,11 +2790,12 @@
       async function loadGallery() {
         const { data, error } = await sb
           .from("gallery_photos")
-          .select("*")
+          .select("*, profiles:user_id(display_name, username)")
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        renderGallery(data || []);
+        galleryPhotos = data || [];
+        renderGallery(galleryPhotos);
       }
 
       async function loadMembers() {
@@ -2767,7 +2827,47 @@
           .order("created_at", { ascending: false });
 
         if (error) throw error;
-        renderAdminGallery(data || []);
+        adminPhotos = data || [];
+        renderAdminGallery(adminPhotos);
+      }
+
+      function findPhotoById(id) {
+        return (
+          galleryPhotos.find((p) => p.id === id) ||
+          adminPhotos.find((p) => p.id === id) ||
+          null
+        );
+      }
+
+      function openPhotoViewer(id) {
+        const photo = findPhotoById(id);
+        if (!photo) return;
+
+        const author =
+          photo.user_id === currentUser?.id
+            ? "Kamu"
+            : photo.profiles?.display_name ||
+              photo.profiles?.username ||
+              "Unknown";
+
+        document.getElementById("photo-viewer-img").src = photo.url;
+        document.getElementById("photo-viewer-img").alt = photo.name || "Foto";
+        document.getElementById("photo-viewer-title").textContent =
+          photo.name || "Pratinjau Foto";
+        document.getElementById("photo-viewer-meta").innerHTML =
+          "<span>👤 " +
+          escHtml(author) +
+          "</span>" +
+          "<span>📅 " +
+          fmt(photo.created_at) +
+          "</span>";
+        document.getElementById("photo-viewer-overlay").classList.add("open");
+      }
+
+      function closePhotoViewer() {
+        document
+          .getElementById("photo-viewer-overlay")
+          .classList.remove("open");
       }
 
       // ═══════════════════════════════════════════════════════════════
@@ -3290,9 +3390,11 @@
           photos && photos.length
             ? photos
                 .map(
-                  (p, i) =>
-                    '<div class="gallery-item" style="padding:0;">' +
-                    '<button class="gallery-del" onclick="deletePhoto(' +
+                  (p) =>
+                    '<div class="gallery-item" style="padding:0;cursor:pointer;" onclick="openPhotoViewer(' +
+                    p.id +
+                    ')">' +
+                    '<button class="gallery-del" onclick="event.stopPropagation(); deletePhoto(' +
                     p.id +
                     ')" title="Hapus foto">✕</button>' +
                     '<img src="' +
@@ -3605,8 +3707,10 @@
             const author =
               p.profiles?.display_name || p.profiles?.username || "Unknown";
             return (
-              '<div class="gallery-item" style="padding:0;">' +
-              '<button class="gallery-del" onclick="adminDeletePhoto(' +
+              '<div class="gallery-item" style="padding:0;cursor:pointer;" onclick="openPhotoViewer(' +
+              p.id +
+              ')">' +
+              '<button class="gallery-del" onclick="event.stopPropagation(); adminDeletePhoto(' +
               p.id +
               ')" title="Hapus foto">✕</button>' +
               '<img src="' +
@@ -3794,6 +3898,12 @@
         .getElementById("viewer-overlay")
         .addEventListener("click", function (e) {
           if (e.target === this) closeViewer();
+        });
+
+      document
+        .getElementById("photo-viewer-overlay")
+        .addEventListener("click", function (e) {
+          if (e.target === this) closePhotoViewer();
         });
 
       document.addEventListener("keydown", (e) => {
