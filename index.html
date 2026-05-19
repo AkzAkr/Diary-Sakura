@@ -1959,6 +1959,7 @@
           🏠 Beranda
         </button>
         <button onclick="switchTab('write', this)">📝 Tulis</button>
+        <button onclick="switchTab('community', this)">📖 Diary Teman</button>
         <button onclick="switchTab('gallery', this)">🖼️ Galeri</button>
         <button onclick="switchTab('about', this)">🌸 Tentang</button>
         <button onclick="switchTab('settings', this)">⚙️ Setelan</button>
@@ -1999,6 +2000,66 @@
           <div class="card">
             <div class="card-title">🌟 Mood Tracker Minggu Ini</div>
             <div class="mood-grid" id="mood-tracker"></div>
+          </div>
+        </div>
+
+        <!-- COMMUNITY / DIARY TEMAN -->
+        <div id="tab-community" class="tab-panel">
+          <div class="card">
+            <div class="card-title">📖 Diary Teman</div>
+            <p
+              style="
+                color: var(--muted);
+                font-size: 0.85rem;
+                margin-bottom: 14px;
+              "
+            >
+              Baca diary dari teman-teman yang sudah approved~ 💕
+            </p>
+            <div class="filter-chips" id="community-filter-chips">
+              <button
+                class="chip active"
+                onclick="filterCommunityEntries('all', this)"
+              >
+                Semua
+              </button>
+              <button
+                class="chip"
+                onclick="filterCommunityEntries('😊 Senang', this)"
+              >
+                😊 Senang
+              </button>
+              <button
+                class="chip"
+                onclick="filterCommunityEntries('🥰 Bahagia', this)"
+              >
+                🥰 Bahagia
+              </button>
+              <button
+                class="chip"
+                onclick="filterCommunityEntries('😴 Lelah', this)"
+              >
+                😴 Lelah
+              </button>
+              <button
+                class="chip"
+                onclick="filterCommunityEntries('😢 Sedih', this)"
+              >
+                😢 Sedih
+              </button>
+              <button
+                class="chip"
+                onclick="filterCommunityEntries('🌸 Damai', this)"
+              >
+                🌸 Damai
+              </button>
+            </div>
+            <div class="diary-list" id="community-diary-list">
+              <div class="no-entries">
+                <div class="ne-icon">📖</div>
+                <p>Belum ada diary dari teman~</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -3040,6 +3101,128 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // COMMUNITY / DIARY TEMAN
+      // ═══════════════════════════════════════════════════════════════
+      let communityCurrentFilter = "all";
+
+      async function loadCommunityEntries() {
+        const { data, error } = await sb
+          .from("diary_entries")
+          .select("*, profiles:user_id(display_name, username)")
+          .neq("user_id", currentUser.id) // Exclude own entries
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Community load error:", error);
+          return;
+        }
+
+        renderCommunityEntries(data || []);
+      }
+
+      function renderCommunityEntries(
+        entries,
+        filter = communityCurrentFilter,
+      ) {
+        const list = document.getElementById("community-diary-list");
+        const filtered =
+          filter === "all" ? entries : entries.filter((e) => e.mood === filter);
+
+        if (!filtered.length) {
+          list.innerHTML =
+            '<div class="no-entries"><div class="ne-icon">📖</div><p>' +
+            (filter === "all"
+              ? "Belum ada diary dari teman~<br>Tunggu teman-temanmu menulis!"
+              : "Tidak ada diary dengan mood ini.") +
+            "</p></div>";
+          return;
+        }
+
+        list.innerHTML = filtered
+          .map((e) => {
+            const author =
+              e.profiles?.display_name || e.profiles?.username || "Unknown";
+            const authorInitial = author.charAt(0).toUpperCase();
+            return (
+              '<div class="diary-entry">' +
+              '<div class="de-top">' +
+              '<div class="date">' +
+              fmt(e.created_at) +
+              "</div>" +
+              '<div class="de-actions">' +
+              '<button onclick="viewCommunityEntry(' +
+              e.id +
+              ')" title="Baca">👁️</button>' +
+              "</div>" +
+              "</div>" +
+              '<div class="author-tag">' +
+              '<span style="display:inline-flex;align-items:center;gap:6px;">' +
+              '<span style="width:20px;height:20px;border-radius:50%;background:linear-gradient(135deg,var(--rose),var(--deep));color:white;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;">' +
+              authorInitial +
+              "</span>" +
+              escHtml(author) +
+              "</span>" +
+              "</div>" +
+              '<div class="ptitle">' +
+              escHtml(e.title) +
+              "</div>" +
+              (e.mood ? '<div class="mood-tag">' + e.mood + "</div>" : "") +
+              '<div class="preview">' +
+              escHtml(e.content.substring(0, 150)) +
+              (e.content.length > 150 ? "..." : "") +
+              "</div>" +
+              "</div>"
+            );
+          })
+          .join("");
+      }
+
+      function filterCommunityEntries(f, btn) {
+        communityCurrentFilter = f;
+        document
+          .querySelectorAll("#community-filter-chips .chip")
+          .forEach((c) => c.classList.remove("active"));
+        btn.classList.add("active");
+        loadCommunityEntries();
+      }
+
+      async function viewCommunityEntry(id) {
+        showLoading(true);
+        try {
+          const { data, error } = await sb
+            .from("diary_entries")
+            .select("*, profiles:user_id(display_name, username)")
+            .eq("id", id)
+            .single();
+
+          if (error || !data) {
+            showToast("❌ Diary tidak ditemukan", false);
+            return;
+          }
+
+          const author =
+            data.profiles?.display_name || data.profiles?.username || "Unknown";
+          document.getElementById("viewer-title").textContent = data.title;
+          document.getElementById("viewer-subtitle").textContent =
+            "Oleh " + escHtml(author) + " · " + fmt(data.created_at);
+          document.getElementById("viewer-meta").innerHTML =
+            "<span>👤 " +
+            escHtml(author) +
+            "</span>" +
+            "<span>📅 " +
+            fmt(data.created_at) +
+            "</span>" +
+            (data.mood ? "<span>" + data.mood + "</span>" : "");
+          document.getElementById("viewer-content").textContent = data.content;
+          document.getElementById("viewer-overlay").classList.add("open");
+        } catch (err) {
+          showToast("❌ Gagal memuat diary", false);
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // SEARCH
       // ═══════════════════════════════════════════════════════════════
       async function doSearch(q) {
@@ -3476,6 +3659,7 @@
         if (btn) btn.classList.add("active");
 
         if (n === "about") renderStats();
+        if (n === "community") loadCommunityEntries();
       }
 
       function switchAdminView(view, btn) {
