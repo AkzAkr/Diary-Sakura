@@ -3287,30 +3287,34 @@
       // ═══════════════════════════════════════════════════════════════
       function renderGallery(photos) {
         const grid = document.getElementById("gallery-grid");
-        const addBtnHtml =
-          '<div class="gallery-item add-btn" onclick="document.getElementById(\"photo-upload\").click()"><span>➕</span><span class="glabel">Tambah Foto</span></div>';
-
-        if (!photos.length) {
-          grid.innerHTML = addBtnHtml;
-          return;
-        }
-
         grid.innerHTML =
-          photos
-            .map(
-              (p, i) =>
-                '<div class="gallery-item" style="padding:0;">' +
-                '<button class="gallery-del" onclick="deletePhoto(' +
-                p.id +
-                ')" title="Hapus foto">✕</button>' +
-                '<img src="' +
-                p.url +
-                '" alt="' +
-                (p.name || "foto") +
-                '" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">' +
-                "</div>",
-            )
-            .join("") + addBtnHtml;
+          photos && photos.length
+            ? photos
+                .map(
+                  (p, i) =>
+                    '<div class="gallery-item" style="padding:0;">' +
+                    '<button class="gallery-del" onclick="deletePhoto(' +
+                    p.id +
+                    ')" title="Hapus foto">✕</button>' +
+                    '<img src="' +
+                    p.url +
+                    '" alt="' +
+                    (p.name || "foto") +
+                    '" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">' +
+                    "</div>",
+                )
+                .join("")
+            : "";
+
+        const addBtn = document.createElement("div");
+        addBtn.className = "gallery-item add-btn";
+        addBtn.innerHTML =
+          '<span>➕</span><span class="glabel">Tambah Foto</span>';
+        addBtn.addEventListener("click", () => {
+          const input = document.getElementById("photo-upload");
+          if (input) input.click();
+        });
+        grid.appendChild(addBtn);
       }
 
       async function addPhoto(input) {
