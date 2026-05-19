@@ -1121,7 +1121,7 @@
         font-weight: 700;
         font-size: 1.1rem;
       }
-      /* .member-details intentionally left without styles; removed empty ruleset */
+      /* .member-details intentionally left without styles */
       .member-name {
         font-weight: 700;
         color: var(--text);
@@ -2270,7 +2270,42 @@
       const SUPABASE_URL = "https://icobgpyztnyjzweslqjn.supabase.co";
       const SUPABASE_ANON_KEY = "sb_publishable_PvMzs98DFcJn3jpQGRbJ7Q_q-S_O6pl";
 
-      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      let sb = null;
+
+      function initSupabase() {
+        // Check if supabase library is loaded
+        if (typeof window.supabase === "undefined") {
+          console.error(
+            "❌ Library Supabase belum dimuat. Periksa koneksi internet.",
+          );
+          return false;
+        }
+
+        // Check if config is set
+        if (
+          SUPABASE_URL.includes("YOUR-PROJECT") ||
+          SUPABASE_ANON_KEY.includes("YOUR-ANON")
+        ) {
+          console.error(
+            "⚠️ Supabase config belum diisi! Edit file ini dan ganti YOUR-PROJECT & YOUR-ANON-KEY",
+          );
+          return false;
+        }
+
+        try {
+          // Use destructuring from global supabase object (UMD pattern)
+          const { createClient } = window.supabase;
+          sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          console.log("✅ Supabase client initialized");
+          return true;
+        } catch (err) {
+          console.error("❌ Gagal inisialisasi Supabase:", err);
+          return false;
+        }
+      }
+
+      // Try to initialize immediately
+      initSupabase();
 
       // ═══════════════════════════════════════════════════════════════
       // GLOBAL STATE
@@ -2395,6 +2430,17 @@
       }
 
       async function doRegister() {
+        // Initialize Supabase if not ready
+        if (!sb) {
+          const ready = initSupabase();
+          if (!ready) {
+            showAuthError(
+              "⚠️ Supabase belum dikonfigurasi! Edit file index.html dan ganti YOUR-PROJECT & YOUR-ANON-KEY dengan data dari Supabase Dashboard.",
+            );
+            return;
+          }
+        }
+
         const name = document.getElementById("reg-name").value.trim();
         const username = document.getElementById("reg-username").value.trim();
         const email = document.getElementById("reg-email").value.trim();
@@ -2425,7 +2471,7 @@
           if (error) throw error;
 
           showAuthSuccess(
-            "🌸 Berhasil daftar! Silakan cek email untuk verifikasi, lalu tunggu admin approve.",
+            "🌸 Berhasil daftar! Sekarang tunggu admin approve akunmu.",
           );
           document.getElementById("reg-name").value = "";
           document.getElementById("reg-username").value = "";
@@ -2433,13 +2479,39 @@
           document.getElementById("reg-password").value = "";
           updateStrength("");
         } catch (err) {
-          showAuthError("❌ " + err.message);
+          if (err.message && err.message.includes("Email not confirmed")) {
+            showAuthError(
+              '📧 Email belum dikonfirmasi! Solusi: Matikan "Confirm email" di Supabase Dashboard → Authentication → Providers → Email. Supabase free tier hanya boleh kirim 2-3 email/jam.',
+            );
+          } else if (
+            err.message &&
+            err.message.includes("Invalid login credentials")
+          ) {
+            showAuthError("❌ Email atau password salah!");
+          } else if (err.message && err.message.includes("rate limit")) {
+            showAuthError(
+              '⏳ Rate limit terlampaui! Supabase free tier hanya 2-3 email/jam. Matikan "Confirm email" di Dashboard → Auth → Providers → Email.',
+            );
+          } else {
+            showAuthError("❌ " + err.message);
+          }
         } finally {
           showLoading(false);
         }
       }
 
       async function doLogin() {
+        // Initialize Supabase if not ready
+        if (!sb) {
+          const ready = initSupabase();
+          if (!ready) {
+            showAuthError(
+              "⚠️ Supabase belum dikonfigurasi! Edit file index.html dan ganti YOUR-PROJECT & YOUR-ANON-KEY dengan data dari Supabase Dashboard.",
+            );
+            return;
+          }
+        }
+
         const email = document.getElementById("login-email").value.trim();
         const password = document.getElementById("login-password").value;
 
@@ -2497,7 +2569,22 @@
 
           showToast("🌸 Selamat datang, " + profile.display_name + "!");
         } catch (err) {
-          showAuthError("❌ " + err.message);
+          if (err.message && err.message.includes("Email not confirmed")) {
+            showAuthError(
+              '📧 Email belum dikonfirmasi! Solusi: Matikan "Confirm email" di Supabase Dashboard → Authentication → Providers → Email. Supabase free tier hanya boleh kirim 2-3 email/jam.',
+            );
+          } else if (
+            err.message &&
+            err.message.includes("Invalid login credentials")
+          ) {
+            showAuthError("❌ Email atau password salah!");
+          } else if (err.message && err.message.includes("rate limit")) {
+            showAuthError(
+              '⏳ Rate limit terlampaui! Supabase free tier hanya 2-3 email/jam. Matikan "Confirm email" di Dashboard → Auth → Providers → Email.',
+            );
+          } else {
+            showAuthError("❌ " + err.message);
+          }
         } finally {
           showLoading(false);
         }
@@ -3159,20 +3246,28 @@
               "</span>" +
               (m.status === "pending" && !isCurrentUser
                 ? '<button class="btn btn-success" onclick="approveMember(' +
+                  "'" +
                   m.id +
+                  "'" +
                   ', true)">✅ Approve</button>' +
                   '<button class="btn btn-danger" onclick="approveMember(' +
+                  "'" +
                   m.id +
+                  "'" +
                   ', false)">❌ Tolak</button>'
                 : "") +
               (m.status === "approved" && !isCurrentUser
                 ? '<button class="btn btn-danger" onclick="approveMember(' +
+                  "'" +
                   m.id +
+                  "'" +
                   ', false)">❌ Tolak</button>'
                 : "") +
               (m.status === "rejected" && !isCurrentUser
                 ? '<button class="btn btn-success" onclick="approveMember(' +
+                  "'" +
                   m.id +
+                  "'" +
                   ', true)">✅ Approve</button>'
                 : "") +
               "</div>" +
@@ -3737,6 +3832,29 @@
         initPetals();
         loadSettings();
 
+        // Wait for Supabase library to load (with retry)
+        let retries = 0;
+        while (typeof window.supabase === "undefined" && retries < 10) {
+          await new Promise((r) => setTimeout(r, 200));
+          retries++;
+        }
+
+        // Initialize Supabase
+        const supabaseReady = initSupabase();
+        if (!supabaseReady) {
+          showLoading(false);
+          return;
+        }
+
+        // Show config warning if Supabase not configured
+        if (
+          SUPABASE_URL.includes("YOUR-PROJECT") ||
+          SUPABASE_ANON_KEY.includes("YOUR-ANON")
+        ) {
+          const warn = document.getElementById("config-warning");
+          if (warn) warn.style.display = "block";
+        }
+
         showLoading(true);
         try {
           const {
@@ -3790,14 +3908,16 @@
         }
       });
 
-      // Auth state changes
-      sb.auth.onAuthStateChange(async (event, session) => {
-        if (event === "SIGNED_OUT") {
-          currentUser = null;
-          currentProfile = null;
-          isAdmin = false;
-        }
-      });
+      // Auth state changes (only if Supabase client initialized)
+      if (sb && sb.auth && typeof sb.auth.onAuthStateChange === "function") {
+        sb.auth.onAuthStateChange(async (event, session) => {
+          if (event === "SIGNED_OUT") {
+            currentUser = null;
+            currentProfile = null;
+            isAdmin = false;
+          }
+        });
+      }
     </script>
   </body>
 </html>
