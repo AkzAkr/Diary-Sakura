@@ -2732,7 +2732,6 @@
         const { data, error } = await sb
           .from("gallery_photos")
           .select("*")
-          .eq("user_id", currentUser.id)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
